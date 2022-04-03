@@ -110,8 +110,6 @@ resource "aws_instance" "app_instance" {
     }
 }
 
-
-
 # output "name" {
 #     value = data.aws_ami.my_ami.id
 # }
