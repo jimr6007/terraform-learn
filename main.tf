@@ -6,7 +6,10 @@ variable env_prefix {}
 variable avail_zone {}
 variable vpc_cidr {}
 variable subnet_cidr {}
+variable instance_type {}
 variable my_ip {}
+variable "ssh_pub_key" {}
+variable "user_data_script" {}
 
 
 resource "aws_vpc" "app_vpc" {
@@ -87,10 +90,13 @@ resource "aws_security_group" "app_sg" {
     }
 }
 
-data "aws_ami" "my_ami" {
+data "aws_ami" "app_ami" {
     most_recent      = true
-    name_regex       = "^amzn2-ami-"
     owners           = ["amazon"]
+    filter {
+        name = "name"
+        values = ["amzn2-ami-kernel-*-x86_64-gp2"]
+    }
     filter {
         name = "virtualization-type"
         values = ["hvm"]
@@ -101,16 +107,31 @@ data "aws_ami" "my_ami" {
     }
 }
 
+resource "aws_key_pair" "ssh-key" {
+    key_name = "server-key"
+    public_key = var.ssh_pub_key
+}
+
 resource "aws_instance" "app_instance" {
-    ami = data.aws_ami.my_ami.id
-    instance_type = "t3.nano"
+    ami = data.aws_ami.app_ami.id
+    instance_type = var.instance_type
+    subnet_id = aws_subnet.app_subnet_1.id
+    vpc_security_group_ids = [ aws_security_group.app_sg.id ]
+    availability_zone = var.avail_zone
+    associate_public_ip_address = true
+    key_name = aws_key_pair.ssh-key.key_name
+
+    user_data = file(var.user_data_script)
 
     tags = {
-        Name = "my_app"
+        Name = "${var.env_prefix}-my_app-server"
     }
 }
 
-# output "name" {
-#     value = data.aws_ami.my_ami.id
-# }
+output "ami-id" {
+    value = data.aws_ami.app_ami.id
+}
 
+output "ec2-instance-public-ip" {
+    value = aws_instance.app_instance.public_ip
+}
